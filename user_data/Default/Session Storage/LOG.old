@@ -1,0 +1,15 @@
+2026/08/02-10:52:41.208 4eb0 Reusing MANIFEST D:\vibecoding\刷课时脚本\user_data\Default\Session Storage/MANIFEST-000001
+2026/08/02-10:52:41.209 4eb0 Recovering log #22
+2026/08/02-10:52:41.213 4eb0 Reusing old log D:\vibecoding\刷课时脚本\user_data\Default\Session Storage/000022.log 
+2026/08/02-10:54:09.999 40a8 Level-0 table #26: started
+2026/08/02-10:54:10.010 40a8 Level-0 table #26: 11636 bytes OK
+2026/08/02-10:54:10.015 40a8 Delete type=0 #22
+2026/08/02-10:54:10.015 40a8 Compacting 4@0 + 1@1 files
+2026/08/02-10:54:10.023 40a8 Generated table #27@0: 12 keys, 7469 bytes
+2026/08/02-10:54:10.024 40a8 Compacted 4@0 + 1@1 files => 7469 bytes
+2026/08/02-10:54:10.025 40a8 compacted to: files[ 0 1 0 0 0 0 0 ]
+2026/08/02-10:54:10.026 40a8 Delete type=2 #14
+2026/08/02-10:54:10.026 40a8 Delete type=2 #17
+2026/08/02-10:54:10.026 40a8 Delete type=2 #20
+2026/08/02-10:54:10.026 40a8 Delete type=2 #23
+2026/08/02-10:54:10.026 40a8 Delete type=2 #26
