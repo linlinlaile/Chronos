@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Cookie Manager</title>
+</head>
+<body>
+<h2>Cookie Manager</h2>
+<form id="cookieForm">
+    <div id="cookieFields">
+    </div>
+    <button type="button" onclick="addCookieFields()">+</button>
+    <button type="button" onclick="start()">开始刷学时脚本</button>
+    <button type="button" onclick="stop()">停止刷学时脚本</button>
+</form>
+<h3>当前刷学时中:</h3>
+<div id="results">
+</div>
+<script>
+    window.onload = function() {
+        // 页面加载时获取已有的cookie并填充表单
+        var xhr = new XMLHttpRequest();
+        xhr.open("GET", "/getCookies");
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                var cookies = JSON.parse(xhr.responseText).data;
+                var cookieFields = document.getElementById('cookieFields');
+                var resultsFields = document.getElementById('results');
+                cookies.forEach(function(cookie) {
+                    var newDiv = document.createElement('div');
+                    newDiv.innerHTML = `
+                            <label for="name">刷学时人:</label>
+                            <input type="text" name="name" value="${cookie.name}">
+                            <label for="value">请填写Cookie:</label>
+                            <input type="text" name="value" value="${cookie.value}">
+                            <label for="type">请选择刷课时类型:</label>
+                            <select name="type">
+                                <option value="15" ${cookie.type == 15 ? 'selected' : ''}>专业课程</option>
+                                <option value="16" ${cookie.type == 16 ? 'selected' : ''}>行业公需</option>
+                                <option value="17" ${cookie.type == 17 ? 'selected' : ''}>一般公需</option>
+                            </select>
+
+                        `;
+                    cookieFields.appendChild(newDiv);
+                    var newDiv2 = document.createElement('div');
+                    newDiv2.innerHTML = `
+                            <label for="name">刷学时人: ${cookie.name};课时类型: ${cookie.type};脚本状态： ${cookie.state};分数状态：${cookie.score}</label>
+                        `;
+                    resultsFields.appendChild(newDiv2);
+                });
+            }
+        };
+        xhr.send();
+    };
+
+
+    function addCookieFields() {
+        var cookieFields = document.getElementById('cookieFields');
+        var newDiv = document.createElement('div');
+        newDiv.innerHTML = `
+                <label for="name">刷学时人:</label>
+                <input type="text" name="name">
+                <label for="value">请填写Cookie:</label>
+                <input type="text" name="value">
+                <label for="type">请选择刷课时类型:</label>
+                <select name="type">
+                <option value="15">专业课程</option>
+                <option value="16">行业公需</option>
+                <option value="17">一般公需</option>
+                </select>
+            `;
+        cookieFields.appendChild(newDiv);
+    }
+
+    function start() {
+        var form = document.getElementById('cookieForm');
+        var formData = new FormData(form);
+
+        // 收集所有 Cookie 条目为对象数组
+        var cookies = [];
+        var names = formData.getAll('name');    // 获取所有 name 字段的值
+        var values = formData.getAll('value');  // 获取所有 value 字段的值
+        var types = formData.getAll('type');    // 获取所有 type 字段的值
+
+        // 组合成对象数组
+        for (var i = 0; i < names.length; i++) {
+            cookies.push({
+                name: names[i],
+                value: values[i],
+                type: parseInt(types[i]) // 确保类型为数字
+            });
+        }
+
+        var xhr = new XMLHttpRequest();
+        xhr.open("POST", "/start");
+        xhr.setRequestHeader("Content-Type", "application/json");
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                location.reload();
+            }
+        };
+        xhr.send(JSON.stringify({ cookies: cookies })); // 发送结构清晰的 JSON
+    }
+
+    function stop() {
+        var form = document.getElementById('cookieForm');
+        var formData = new FormData(form);
+
+        var xhr = new XMLHttpRequest();
+        xhr.open("POST", "/stop");
+        xhr.setRequestHeader("Content-Type", "application/json");
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                // 刷新页面
+                location.reload();
+            }
+        };
+        xhr.send(JSON.stringify(formData));
+    }
+</script>
+</body>
+</html>
