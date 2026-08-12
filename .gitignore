@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+
+# Browser runtime profiles and generated cache files
+user_data/
+chrome_data/
