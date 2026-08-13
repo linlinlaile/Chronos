@@ -41,11 +41,7 @@ CREDIT_REQUIREMENTS = {
 # 连续学习多少门课程后再刷新一次学时面板，避免每门课结束都切回学时页。
 CREDIT_CHECK_INTERVAL = 5
 
-# 每轮随机抽取的课程页数。
-RANDOM_PAGE_COUNT = 3
-
 # 课程目录搜索范围，仅首次在第 1 到第 5 页建立课程队列。
-COURSE_PAGE_START = 1
 COURSE_PAGE_END = 5
 
 # 随机分页时允许的最大分页操作次数，避免远距离页码退化为长时间逐页点击。

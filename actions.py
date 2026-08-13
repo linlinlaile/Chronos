@@ -1,6 +1,5 @@
 """页面操作模块 — 封装所有页面交互"""
 
-import random
 import re
 from decimal import Decimal, InvalidOperation
 from playwright.sync_api import Page, BrowserContext
@@ -12,7 +11,6 @@ from config import (
     LEARN_NOW_TEXT,
     MAX_PAGE_NAVIGATION_STEPS,
     SAVE_PLAYBACK_SCREENSHOTS,
-    COURSE_PAGE_START,
     COURSE_PAGE_END,
 )
 
@@ -434,23 +432,6 @@ def course_key_from_url(url: str) -> str:
     return match.group(1) if match else url
 
 
-def _course_candidate_records(items: list, excluded: set[str] | None = None) -> list[dict]:
-    """一次读取课程卡片所需字段，后续排序不再反复访问浏览器 DOM。"""
-    excluded = excluded or set()
-    records = []
-    for item in items:
-        key = course_key(item)
-        if key in excluded:
-            continue
-        duration = parse_duration(item)
-        try:
-            title = item.locator(".Line span").first.inner_text().strip()
-        except Exception:
-            title = "(未知)"
-        records.append({"item": item, "key": key, "title": title, "duration": duration})
-    return records
-
-
 def _course_title(item) -> str:
     try:
         return item.locator(".Line span").first.inner_text().strip()
@@ -602,31 +583,6 @@ def _repair_catalog_course_location(page: Page, record: dict):
     return None
 
 
-def shortest_course(items: list, excluded: set[str] | None = None):
-    """从课程卡片列表中选择时长最短的一门。"""
-    excluded = excluded or set()
-    best = None
-    best_dur = 9999
-    eligible_count = 0
-    for item in items:
-        if course_key(item) in excluded:
-            continue
-        eligible_count += 1
-        dur = parse_duration(item)
-        if dur < best_dur:
-            best_dur = dur
-            best = item
-    if eligible_count and best is None:
-        raise RuntimeError("课程列表中没有包含有效时长的课程")
-    if best is not None:
-        try:
-            name = best.locator(".Line span").first.inner_text()
-        except Exception:
-            name = "(未知)"
-        print(f"选择时长最短课程: {name}（{best_dur} 分钟）")
-    return best
-
-
 def enter_course_by_item(page: Page, context: BrowserContext, item) -> Page:
     """点击课程卡片，兼容新标签页和当前页跳转两种页面行为。"""
     old_url = page.url
@@ -680,40 +636,6 @@ def enter_course_by_item(page: Page, context: BrowserContext, item) -> Page:
     return detail_page
 
 
-def random_enter_course(page: Page, context: BrowserContext) -> Page:
-    """随机选择一门课程进入详情页。"""
-    items = get_course_items(page)
-    if not items:
-        raise Exception("课程列表为空，无法选择课程")
-
-    chosen = random.choice(items)
-    course_name = chosen.locator(".Line span").first.inner_text() or "(未能读取)"
-    print(f"随机选择了课程: {course_name}")
-
-    return enter_course_by_item(page, context, chosen)
-
-
-def shortest_enter_course(
-    page: Page, context: BrowserContext, excluded: set[str] | None = None
-) -> Page:
-    """从当前页开始选择最短未学习课程，当前页耗尽时自动翻页。"""
-    excluded = excluded or set()
-    for page_number in range(1, 101):
-        items = get_course_items(page)
-        if not items:
-            raise RuntimeError(f"第 {page_number} 页没有课程，无法选择课程")
-
-        chosen = shortest_course(items, excluded)
-        if chosen is not None:
-            return enter_course_by_item(page, context, chosen)
-
-        print(f"第 {page_number} 页的 {len(items)} 门课程都已学习，尝试下一页...")
-        if not _goto_next_course_page(page, items):
-            raise RuntimeError("课程列表已翻完，没有找到未学习课程")
-
-    raise RuntimeError("翻页超过 100 页，停止寻找课程")
-
-
 def _goto_next_course_page(page: Page, old_items: list) -> bool:
     """点击课程分页下一页；下一页不存在或按钮禁用时返回 False。"""
     next_button = page.locator(".el-pagination .btn-next:visible")
@@ -733,17 +655,6 @@ def _goto_next_course_page(page: Page, old_items: list) -> bool:
     except Exception as exc:
         print(f"切换课程下一页失败: {exc}")
     return False
-
-
-def _course_page_count(page: Page, item_count: int) -> int:
-    """根据分页总数和当前页数量估算课程总页数。"""
-    pagination = page.locator(".el-pagination")
-    if pagination.count() == 0 or item_count <= 0:
-        return 1
-    text = pagination.first.inner_text()
-    match = re.search(r"共\s*(\d+)\s*条", text)
-    return max(1, (int(match.group(1)) + item_count - 1) // item_count) if match else 1
-
 
 def _current_course_page_number(page: Page) -> int:
     active = page.locator(
@@ -848,118 +759,6 @@ def _goto_course_page_number(page: Page, target: int) -> None:
         # 时按普通下一页推进，避免把同一页误判为未变化而重复点击。
         detected = _current_course_page_number(page)
         current = detected if detected > current else current + 1
-
-
-def _reachable_course_pages(page: Page) -> list[int]:
-    """返回分页器当前可直接点击的页码，避免随机抽样触发远距离逐页跳转。"""
-    numbers = page.locator(".el-pagination li.number:visible")
-    reachable = set()
-    for index in range(numbers.count()):
-        try:
-            match = re.search(r"\d+", numbers.nth(index).inner_text())
-            if match:
-                reachable.add(int(match.group()))
-        except Exception:
-            continue
-    reachable.add(_current_course_page_number(page))
-    return sorted(reachable)
-
-
-def random_three_shortest_enter_course(
-    page: Page,
-    context: BrowserContext,
-    excluded: set[str] | None = None,
-    sample_pages: int = 3,
-) -> Page:
-    """随机抽取若干课程页，在抽样页中选择时长最短的未学习课程。"""
-    excluded = excluded or set()
-    first_items = get_course_items(page)
-    if not first_items:
-        raise RuntimeError("当前页没有课程，无法选择课程")
-    total_pages = _course_page_count(page, len(first_items))
-    total_search_pages = min(total_pages, COURSE_PAGE_END)
-    current_page = _current_course_page_number(page)
-    if current_page < COURSE_PAGE_START or current_page > total_search_pages:
-        _goto_course_page_number(page, COURSE_PAGE_START)
-        current_page = COURSE_PAGE_START
-
-    search_pages = list(range(COURSE_PAGE_START, total_search_pages + 1))
-    reachable_pages = [
-        number for number in _reachable_course_pages(page) if number in search_pages
-    ]
-    # 第 1 页重置后，目标范围内的页码可通过普通分页逐页到达；抽样仍限制为 3 页。
-    if len(reachable_pages) < min(sample_pages, len(search_pages)):
-        reachable_pages = search_pages
-    other_pages = [number for number in reachable_pages if number != current_page]
-    selected_pages = [current_page]
-    selected_pages.extend(
-        random.sample(other_pages, min(max(0, sample_pages - 1), len(other_pages)))
-    )
-    selected_pages = sorted(set(selected_pages))
-    page_count = len(selected_pages)
-    if len(reachable_pages) < sample_pages:
-        print(
-            f"分页器当前仅暴露 {len(reachable_pages)} 个可直接到达页码，"
-            f"本轮降级抽取 {page_count} 页"
-        )
-    print(f"本轮随机抽取课程页: {selected_pages}（共 {total_pages} 页）")
-
-    best_page = None
-    best_record = None
-    for page_number in selected_pages:
-        try:
-            _goto_course_page_number(page, page_number)
-        except RuntimeError as exc:
-            print(f"第 {page_number} 页无法稳定到达，跳过该抽样页: {exc}")
-            continue
-        items = get_course_items(page)
-        records = _course_candidate_records(items, excluded)
-        records = [r for r in records if r["duration"] < 9999]
-        if not records:
-            print(f"第 {page_number} 页没有未学习课程，跳过")
-            continue
-        candidate = min(records, key=lambda record: record["duration"])
-        if best_record is None or candidate["duration"] < best_record["duration"]:
-            best_page = page_number
-            best_record = candidate
-
-    if best_page is None:
-        raise RuntimeError("随机抽取的课程页都没有未学习课程")
-
-    try:
-        _goto_course_page_number(page, best_page)
-    except RuntimeError as exc:
-        print(f"无法返回最短课程所在页，降级使用当前页: {exc}")
-    items = get_course_items(page)
-    chosen = None
-    for item in items:
-        if course_key(item) == best_record["key"]:
-            chosen = item
-            break
-        # 页面重新渲染后，Vue 卡片的临时链接标识可能变化；同页标题和时长
-        # 仍然相同时，视为同一门候选课程。
-        if (
-            _course_title(item) == best_record["title"]
-            and parse_duration(item) == best_record["duration"]
-        ):
-            chosen = item
-            break
-    if chosen is None:
-        available = [
-            record
-            for record in _course_candidate_records(items, excluded)
-            if record["duration"] < 9999
-        ]
-        if available:
-            chosen = min(available, key=lambda record: record["duration"])["item"]
-            print("目标候选标识发生变化，已回退选择目标页当前最短未学习课程")
-        else:
-            raise RuntimeError("目标课程页刷新后找不到可学习课程")
-    print(
-        f"从随机抽取页中选择第 {best_page} 页的最短课程: "
-        f"{best_record['title']}（{best_record['duration']} 分钟）"
-    )
-    return enter_course_by_item(page, context, chosen)
 
 
 def _wait_page_ready(page: Page) -> None:
@@ -1272,14 +1071,6 @@ def wait_video_finish(page: Page, timeout_sec: int = 7200) -> bool:
     return False
 
 
-def is_video_finished(page: Page) -> bool:
-    """检查视频是否已播放完成（ended 状态）。"""
-    try:
-        return bool(page.evaluate("window.__video_progress ? window.__video_progress.ended : false"))
-    except Exception:
-        return False
-
-
 # === 弹框处理 ===
 
 def _is_credit_completion_message(message: str) -> bool:
@@ -1443,12 +1234,3 @@ def wait_and_dismiss_dialogs(context, timeout_sec: int = 15) -> bool:
             pages[0].wait_for_timeout(500)
         waited += 0.5
     return False
-
-
-def has_credit_increased(before: dict, after: dict, category: str) -> bool:
-    """判断目标类别学时是否被服务端实际记账。"""
-    before_value = before.get("completed", {}).get(category)
-    after_value = after.get("completed", {}).get(category)
-    if before_value is None or after_value is None:
-        raise RuntimeError(f"无法比较「{category}」学时，页面数据不完整")
-    return after_value > before_value

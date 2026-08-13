@@ -25,11 +25,7 @@ from actions import (  # noqa: E402
     click_learn_now,
     click_play_and_hold,
     parse_duration,
-    shortest_course,
-    _course_candidate_records,
-    _reachable_course_pages,
     _visible_course_page_locator,
-    has_credit_increased,
     wait_and_dismiss_dialogs,
     wait_video_finish,
     parse_credit_hours,
@@ -237,20 +233,6 @@ class ActionsTests(unittest.TestCase):
         })
         self.assertEqual(result, "专业课程")
 
-    def test_shortest_course_and_duration(self):
-        items = [FakeItem(36), FakeItem(12), FakeItem(25)]
-        self.assertEqual(parse_duration(items[1]), 12)
-        self.assertIs(items[1], shortest_course(items))
-
-    def test_course_snapshot_excludes_completed_courses(self):
-        items = [FakeItem(36), FakeItem(12), FakeItem(25)]
-        excluded = {"title:课程|duration:12"}
-        records = _course_candidate_records(items, excluded)
-        self.assertEqual([record["duration"] for record in records], [36, 25])
-
-    def test_reachable_page_sample_is_limited_to_visible_numbers(self):
-        self.assertEqual(_reachable_course_pages(PaginationPage()), [104, 105, 106, 107, 108])
-
     def test_visible_page_is_selected_by_exact_text(self):
         locator = _visible_course_page_locator(PaginationPage(), 107)
         self.assertIsNotNone(locator)
@@ -343,16 +325,6 @@ class ActionsTests(unittest.TestCase):
             patch("actions._dismiss_normal_dialogs", return_value=True),
         ):
             self.assertFalse(wait_and_dismiss_dialogs(context, timeout_sec=1))
-
-    def test_credit_increase_is_required(self):
-        before = {"completed": {"专业课程": 10.0}}
-        self.assertTrue(has_credit_increased(
-            before, {"completed": {"专业课程": 10.5}}, "专业课程"
-        ))
-        self.assertFalse(has_credit_increased(
-            before, {"completed": {"专业课程": 10.0}}, "专业课程"
-        ))
-
 
 if __name__ == "__main__":
     unittest.main()

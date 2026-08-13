@@ -1,7 +1,14 @@
 .venv/
 __pycache__/
 *.pyc
+.idea/
 
-# Browser runtime profiles and generated cache files
+# Browser profiles and generated runtime state
 user_data/
 chrome_data/
+learned_courses.json
+course_catalog.json
+
+# Diagnostic output
+*.png
+*.html
